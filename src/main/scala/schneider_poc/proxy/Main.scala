@@ -1,7 +1,6 @@
-package schneider_poc
+package schneider_poc.proxy
 
 import org.rogach.scallop.ScallopConf
-import zhttp.service.Server
 import zio.{ZEnv, ZIO, ZIOAppArgs, ZIOAppDefault}
 
 class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
