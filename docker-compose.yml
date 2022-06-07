@@ -12,6 +12,8 @@ services:
     container_name: kafka
     ports:
       - "9092:9092"
+    expose:
+      - "9092"
     environment:
       KAFKA_ADVERTISED_HOST_NAME: localhost
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -20,8 +22,6 @@ services:
     image: yandex/clickhouse-server
     ports:
       - "8123:8123"
-      - "9000:9000"
-      - "9009:9009"
     ulimits:
       nproc: 65535
       nofile:
