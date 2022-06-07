@@ -17,6 +17,6 @@ object Main extends ZIOAppDefault {
       cli  = new ApplicationCli(args.toList)
       srv <- SimpleKafkaProxy
               .start(cli.port())
-              .provideService(KafkaService.live(cli.bootstrapServer()))
+              .provideLayer(KafkaService.live(cli.bootstrapServer()))
     } yield srv
 }

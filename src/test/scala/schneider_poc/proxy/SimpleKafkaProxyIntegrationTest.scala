@@ -46,7 +46,7 @@ object SimpleKafkaProxyIntegrationTest extends DefaultRunnableSpec with LazyLogg
     )
 
   private def startService(servicePort: Int, kafkaPort: Int) =
-    SimpleKafkaProxy.start(servicePort).provideService(KafkaService.live(s"localhost:$kafkaPort"))
+    SimpleKafkaProxy.start(servicePort).provideLayer(KafkaService.live(s"localhost:$kafkaPort"))
 
   private val runServices = (for {
     si @ ServicesInfo(zkPort, kafkaPort, servicePort) <- findFreePorts
