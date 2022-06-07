@@ -1,7 +1,7 @@
 package schneider_poc.proxy
 
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.StringSerializer
 import zio.Task
 
@@ -22,8 +22,17 @@ object KafkaService extends LazyLogging {
 
     override def produce(topic: String, key: String, message: String): Task[Unit] =
       Task {
-        producer.send(new ProducerRecord(topic, key, message)).get()
-        logger.debug(s"Kafka message with key=$key and topic=$topic produced")
+        producer
+          .send(
+            new ProducerRecord(topic, key, message),
+            (metadata: RecordMetadata, exception: Exception) => {
+              if (exception == null)
+                logger.debug(s"Kafka message with key=$key and topic=$topic produced, offset=${metadata.offset()}")
+              else
+                throw exception
+            }
+          )
+          .get()
       }
   }
 }
