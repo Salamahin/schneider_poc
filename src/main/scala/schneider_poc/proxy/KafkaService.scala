@@ -3,13 +3,18 @@ package schneider_poc.proxy
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.StringSerializer
-import zio.{Task, UIO, ZManaged}
+import zio.{IO, UIO, ZManaged}
 
 import java.util.Properties
 
+sealed trait KafkaError
+case object UnknownKafkaError extends KafkaError
+
+case class MessageLocation(partition: Int, offset: Long)
+
 trait KafkaService {
-  def produce(topic: String, message: String): Task[Unit] = produce(topic, null, message)
-  def produce(topic: String, key: String, message: String): Task[Unit]
+  def produce(topic: String, message: String): IO[KafkaError, MessageLocation] = produce(topic, null, message)
+  def produce(topic: String, key: String, message: String): IO[KafkaError, MessageLocation]
 }
 
 object KafkaService extends LazyLogging {
@@ -26,8 +31,9 @@ object KafkaService extends LazyLogging {
       ) { pr => UIO(pr.close()) }
       .map { pr =>
         new KafkaService {
-          override def produce(topic: String, key: String, message: String): Task[Unit] = Task {
-            pr.send(
+          override def produce(topic: String, key: String, message: String): IO[KafkaError, MessageLocation] = IO.fromEither {
+            val meta = pr
+              .send(
                 new ProducerRecord(topic, key, message),
                 (metadata: RecordMetadata, exception: Exception) => {
                   if (exception == null) {
@@ -37,6 +43,9 @@ object KafkaService extends LazyLogging {
                 }
               )
               .get()
+
+            if (meta.hasOffset) Right(MessageLocation(meta.partition(), meta.offset()))
+            else Left(UnknownKafkaError)
           }
         }
       }
