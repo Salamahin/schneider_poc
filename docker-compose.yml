@@ -12,8 +12,6 @@ services:
     container_name: kafka
     ports:
       - "9092:9092"
-    expose:
-      - "9092"
     environment:
       KAFKA_ADVERTISED_HOST_NAME: localhost
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -35,3 +33,7 @@ services:
     command: --host clickhouse-server --queries-file /init.sql
     depends_on:
       - "clickhouse-server"
+#
+#  kcat:
+#    image: edenhill/kafkacat:1.7.0-PRE1
+#    command: -b kafka:9092 -t mytopic -C

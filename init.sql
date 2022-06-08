@@ -9,7 +9,7 @@ create table if not exists kafka_mytopic(
     `timestamp` Int64,
     `value`     Float64
 ) engine = Kafka() settings
-    kafka_broker_list = '127.0.0.1:9092',
+    kafka_broker_list = 'kafka:9092',
     kafka_topic_list = 'mytopic',
     kafka_group_name = 'mytopic-clickhouse-consumer-1',
     kafka_num_consumers = 5,

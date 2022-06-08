@@ -25,6 +25,8 @@ object Main extends ZIOAppDefault with LazyLogging {
       (for {
         nextRecord <- Record.next(cli.id())
         serialized = nextRecord.asJson.noSpaces
+        _          = logger.debug(s"A new message $serialized generated")
+
         _ <- Client
               .request(
                 url = if (cli.serviceUrl() endsWith "/") s"${cli.serviceUrl()}${cli.topic()}" else s"${cli.serviceUrl()}/${cli.topic()}",
@@ -34,7 +36,8 @@ object Main extends ZIOAppDefault with LazyLogging {
               .provideCustomLayer(
                 ChannelFactory.auto ++ EventLoopGroup.auto()
               )
-        _ = logger.debug(s"A new message $serialized generated and sent")
+
+        _ = logger.debug(s"$serialized message successfully sent")
       } yield ()).schedule(Schedule.fixed(zio.Duration.fromScala(cli.periodicity())))
 
     for {

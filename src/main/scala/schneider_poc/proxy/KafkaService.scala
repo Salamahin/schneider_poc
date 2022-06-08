@@ -30,10 +30,10 @@ object KafkaService extends LazyLogging {
             pr.send(
                 new ProducerRecord(topic, key, message),
                 (metadata: RecordMetadata, exception: Exception) => {
-                  if (exception == null)
-                    logger.debug(s"Kafka message with key=$key and topic=$topic produced, offset=${metadata.offset()}")
-                  else
-                    throw exception
+                  if (exception == null) {
+                    logger.debug(s"Kafka message with key=$key and value=$message is stored in the topic=$topic, offset=${metadata.offset()}, partition=${metadata.partition()}")
+                  } else
+                    logger.error(s"Failed to store the message with key=$key and value=$message is stored in the topic=$topic}", exception)
                 }
               )
               .get()
