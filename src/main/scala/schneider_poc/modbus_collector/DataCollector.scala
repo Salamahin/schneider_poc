@@ -13,7 +13,7 @@ sealed trait Measured {
 case class Numeric(override val timestamp: Instant, value: BigDecimal) extends Measured
 
 trait DataCollector {
-  def measure(deviceId: Int, gauge: Gauge): URIO[Clock, Measured]
+  def measure(gaugeId: String, deviceId: Int, gauge: Gauge): URIO[Clock, Measured]
 }
 
 object DataCollector extends LazyLogging {
@@ -32,8 +32,8 @@ object DataCollector extends LazyLogging {
   }
 
   class RealDataCollector(master: ModbusTCPMaster) extends DataCollector with LazyLogging {
-    private def measureGauge(gauge: Gauge, master: ModbusTCPMaster, deviceId: Int) = {
-      logger.debug(s"Measurement started, deviceId=$deviceId, gauge=$gauge")
+    private def measureGauge(gaugeId: String, gauge: Gauge, master: ModbusTCPMaster, deviceId: Int) = {
+      logger.debug(s"Measurement started, gaugeId=${gaugeId}, deviceId=$deviceId, gauge=$gauge")
 
       gauge match {
         case Int16(offset, scale) =>
@@ -54,12 +54,12 @@ object DataCollector extends LazyLogging {
       }
     }
 
-    override def measure(deviceId: Int, gauge: Gauge) =
+    override def measure(gaugeId: String, deviceId: Int, gauge: Gauge) =
       for {
-        measured <- URIO { measureGauge(gauge, master, deviceId) }
+        measured <- URIO { measureGauge(gaugeId, gauge, master, deviceId) }
         now      <- Clock.instant
 
-        _ = logger.debug(s"Measurement complete, deviceId=$deviceId, gauge=$gauge, result=$measured")
+        _ = logger.debug(s"Measurement complete, gaugeId=$gaugeId deviceId=$deviceId, gauge=$gauge, result=$measured")
 
       } yield Numeric(now, measured)
   }
@@ -67,7 +67,12 @@ object DataCollector extends LazyLogging {
   private def openModbusTcpMaster(host: String, port: Int) = {
     val m = new ModbusTCPMaster(host, port)
     m.connect()
-    logger.debug(s"Modbus TCP master connected to host=$host:$port")
+
+    if (m.isConnected)
+      logger.debug(s"Modbus TCP master connected on host=$host:$port")
+    else
+      throw new IllegalStateException("Failed to connect to modbus TCP master on host=$host:$port")
+
     m
   }
 

@@ -9,6 +9,7 @@ case class Int16(offset: Int, scale: Int)  extends Gauge
 
 case class Device(deviceId: Int, gauges: Map[String, Gauge])
 case class Gateway(id: String, host: String, port: Int, devices: List[Device])
+case class Registry(registry: Seq[Gateway])
 
 trait DeviceRegistry {
   def listGateways: Task[Seq[Gateway]]
@@ -21,7 +22,7 @@ object DeviceRegistry {
         import pureconfig._
         import pureconfig.generic.auto._
 
-        ConfigSource.file(file).loadOrThrow[Seq[Gateway]]
+        ConfigSource.file(file).loadOrThrow[Registry].registry
       }
     })
 }

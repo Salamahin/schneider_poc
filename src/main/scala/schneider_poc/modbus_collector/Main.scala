@@ -1,8 +1,9 @@
 package schneider_poc.modbus_collector
 
+import com.typesafe.scalalogging.LazyLogging
 import org.rogach.scallop.ScallopConf
 import zhttp.service.{ChannelFactory, EventLoopGroup}
-import zio.Schedule.{fixed, forever}
+import zio.Schedule.fixed
 import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault, Duration => ZDuration}
 
 import scala.concurrent.duration.FiniteDuration
@@ -15,20 +16,8 @@ class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
   verify()
 }
 
-object Main extends ZIOAppDefault {
-  private def program(dc: DataCollector, client: Client)(gw: Gateway, periodicity: FiniteDuration) = {
-    ZIO
-      .foreachParDiscard(gw.devices) { device =>
-        val measurement = ZIO.foreachDiscard(device.gauges) {
-          case (gaugeId, g) =>
-            dc.measure(device.deviceId, g)
-              .map(m => MeasuredGauge(gw.id, device.deviceId, gaugeId, m))
-              .flatMap(client.send[MeasuredGauge])
-        }
+object Main extends ZIOAppDefault with LazyLogging {
 
-        measurement.repeat(fixed(ZDuration fromScala periodicity))
-      }
-  }
 
   override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
     val cliLayer = ZIO
@@ -53,7 +42,7 @@ object Main extends ZIOAppDefault {
             .foreachParDiscard(gateways) { gw =>
               DataCollector
                 .live(gw.host, gw.port)
-                .flatMap(dc => program(dc, restClient)(gw, cli.periodicity()))
+                .flatMap(dc => Measurement.program(dc, restClient)(gw, cli.periodicity()))
             }
     } yield ())
       .provideSomeLayer(
@@ -64,7 +53,9 @@ object Main extends ZIOAppDefault {
           restLayer ++
           registryLayer
       )
-      .retry(forever)
-      .exitCode
+      .foldCause(
+        failure => logger.error(s"Unexpected failure:\n${failure.prettyPrint}"),
+        _ => ()
+      )
   }
 }

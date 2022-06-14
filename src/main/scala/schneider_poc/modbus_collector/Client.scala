@@ -19,7 +19,7 @@ object MeasuredGauge {
   }
 
   def apply(gatewayId: String, deviceId: Int, gaugeId: String, value: Measured) = new MeasuredGauge(
-    s"$gatewayId.$deviceId.$gaugeId",
+    s"${gatewayId}+${deviceId}+${gaugeId}",
     value
   )
 }
