@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.circe.{Encoder, Json}
 import zhttp.http.{HttpData, Method}
 import zhttp.service.{ChannelFactory, EventLoopGroup, Client => ZClient}
-import zio.{ULayer, ZIO, ZLayer}
+import zio.ZIO
 
 case class MeasuredGauge(id: String, value: Measured)
 
@@ -14,7 +14,7 @@ object MeasuredGauge {
       Json.obj(
         "id"        -> Json.fromString(id),
         "timestamp" -> Json.fromLong(timestamp.toEpochMilli),
-        "value"     -> Json.fromDoubleOrNull(value)
+        "value"     -> Json.fromBigDecimal(value)
       )
   }
 
@@ -29,21 +29,20 @@ trait Client {
 }
 
 object Client extends LazyLogging {
-  def rest(endpoint: String): ULayer[Client] =
-    ZLayer.succeed(new Client {
-      import io.circe.syntax._
+  def rest(endpoint: String): Client = new Client {
+    import io.circe.syntax._
 
-      override def send[T: Encoder](message: T) =
-        for {
-          r <- ZClient.request(
-                url = endpoint,
-                method = Method.POST,
-                content = HttpData.fromString(message.asJson.noSpaces)
-              )
+    override def send[T: Encoder](message: T) =
+      for {
+        r <- ZClient.request(
+              url = endpoint,
+              method = Method.POST,
+              content = HttpData.fromString(message.asJson.noSpaces)
+            )
 
-          response <- r.bodyAsString
-          _        = logger.debug(s"The message was sent, response=$response")
+        response <- r.bodyAsString
+        _        = logger.debug(s"The message was sent, response=$response")
 
-        } yield ()
-    })
+      } yield ()
+  }
 }

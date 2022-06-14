@@ -2,7 +2,8 @@ package schneider_poc.modbus_collector
 
 import org.rogach.scallop.ScallopConf
 import zhttp.service.{ChannelFactory, EventLoopGroup}
-import zio.{Clock, Schedule, ZEnv, ZIO, ZIOAppArgs, ZIOAppDefault}
+import zio.Schedule.{fixed, forever}
+import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault, Duration => ZDuration}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -15,21 +16,18 @@ class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
 }
 
 object Main extends ZIOAppDefault {
+  private def program(dc: DataCollector, client: Client)(gw: Gateway, periodicity: FiniteDuration) = {
+    ZIO
+      .foreachParDiscard(gw.devices) { device =>
+        val measurement = ZIO.foreachDiscard(device.gauges) {
+          case (gaugeId, g) =>
+            dc.measure(device.deviceId, g)
+              .map(m => MeasuredGauge(gw.id, device.deviceId, gaugeId, m))
+              .flatMap(client.send[MeasuredGauge])
+        }
 
-  def measure(gatewayId: String, device: Device) = {
-    ZIO.foreachDiscard(device.gauges) {
-      case (gaugeId, g) =>
-        for {
-          client        <- ZIO.environment[Client].map(_.get)
-          dataCollector <- ZIO.environment[DataCollector].map(_.get)
-
-          _ <- dataCollector
-                .measure(device.deviceId, g)
-                .map(m => MeasuredGauge(gatewayId, device.deviceId, gaugeId, m))
-                .flatMap(client.send[MeasuredGauge])
-        } yield ()
-
-    }
+        measurement.repeat(fixed(ZDuration fromScala periodicity))
+      }
   }
 
   override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
@@ -38,33 +36,35 @@ object Main extends ZIOAppDefault {
       .map(args => new ApplicationCli(args.get.getArgs))
       .toLayer
 
-    val clientLayer = cliLayer
-      .flatMap(cli => Client.rest(cli.get.serviceUrl()))
-
     val registryLayer = cliLayer
       .flatMap(cli => DeviceRegistry.fromFile(cli.get.registryFile()))
 
-    val collectorLayer = registryLayer
-      .flatMap(reg => DataCollector.live(reg.get.host, reg.get.port))
+    val restLayer = cliLayer
+      .map(cli => ZEnvironment(Client.rest(cli.get.serviceUrl())))
 
-    val program = for {
-      cli     <- ZIO.environment[ApplicationCli].map(_.get)
-      gateway <- ZIO.environment[Gateway].map(_.get)
+    (for {
+      devRegistry <- ZIO.environmentWith[DeviceRegistry](_.get)
+      restClient  <- ZIO.environmentWith[Client](_.get)
+      cli         <- ZIO.environmentWith[ApplicationCli](_.get)
 
-      _ <- ZIO.foreachParDiscard(gateway.devices) { d => measure(gateway.id, d).repeat(Schedule.fixed(zio.Duration.fromScala(cli.periodicity()))) }
-    } yield ()
+      gateways <- devRegistry.listGateways
 
-    program
-      .retry(Schedule.forever)
+      _ <- ZIO
+            .foreachParDiscard(gateways) { gw =>
+              DataCollector
+                .live(gw.host, gw.port)
+                .flatMap(dc => program(dc, restClient)(gw, cli.periodicity()))
+            }
+    } yield ())
       .provideSomeLayer(
         EventLoopGroup.auto() ++
           ChannelFactory.auto ++
           Clock.live ++
           cliLayer ++
-          clientLayer ++
-          registryLayer ++
-          collectorLayer
+          restLayer ++
+          registryLayer
       )
+      .retry(forever)
       .exitCode
   }
 }
