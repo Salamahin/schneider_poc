@@ -6,6 +6,7 @@ sealed trait Gauge
 case class Uint32(offset: Int, scale: Int) extends Gauge
 case class Uint16(offset: Int, scale: Int) extends Gauge
 case class Int16(offset: Int, scale: Int)  extends Gauge
+case class Int64(offset: Int)              extends Gauge
 case class Float32(offset: Int)            extends Gauge
 
 case class Device(deviceId: Int, gauges: Map[String, Gauge])
