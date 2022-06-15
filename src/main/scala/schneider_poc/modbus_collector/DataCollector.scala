@@ -17,17 +17,19 @@ trait DataCollector {
 }
 
 class RealDataCollector(host: String, port: Int) extends DataCollector with LazyLogging with AutoCloseable {
-  private implicit class UnsignedInt16Syntax(bi: Int) {
-    def uint16: BigInt = BigInt(Array(0: Byte) ++ BigInt(bi).toByteArray)
+  private implicit class _16BitDataTypeSyntax(bi: Int) {
+    def uint16: BigInt = BigInt(bi & 0xffff)
   }
 
-  private implicit class UnsignedInt32Syntax(bi: Array[Int]) {
+  private implicit class _32BitDataTypeSyntax(bi: Array[Int]) {
     def uint32: BigInt = {
-      val ba = bi.take(2).map(v => BigInt(v).toByteArray).foldLeft(Array(0: Byte)) {
-        case (acc, next) => acc ++ next
-      }
+      val Array(left, right) = bi.take(2)
+      BigInt((left << 16) | (right & 0xffff))
+    }
 
-      BigInt(ba)
+    def float32: BigDecimal = {
+      val Array(left, right) = bi.take(2)
+      BigDecimal(java.lang.Float.intBitsToFloat((left << 16) | (right & 0xffff)))
     }
   }
 
@@ -53,6 +55,13 @@ class RealDataCollector(host: String, port: Int) extends DataCollector with Lazy
           .map(_.getValue)
           .uint32
         BigDecimal(value) / scale
+
+      case Float32(offset) =>
+        master
+          .readMultipleRegisters(deviceId, offset, 2)
+          .map(_.asInstanceOf[SimpleRegister])
+          .map(_.getValue)
+          .float32
     }
   }
 
