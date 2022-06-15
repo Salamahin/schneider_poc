@@ -3,8 +3,7 @@ package schneider_poc.modbus_collector
 import com.typesafe.scalalogging.LazyLogging
 import org.rogach.scallop.ScallopConf
 import zhttp.service.{ChannelFactory, EventLoopGroup}
-import zio.Schedule.fixed
-import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault, Duration => ZDuration}
+import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -17,7 +16,6 @@ class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
 }
 
 object Main extends ZIOAppDefault with LazyLogging {
-
 
   override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
     val cliLayer = ZIO
@@ -40,9 +38,11 @@ object Main extends ZIOAppDefault with LazyLogging {
 
       _ <- ZIO
             .foreachParDiscard(gateways) { gw =>
-              DataCollector
-                .live(gw.host, gw.port)
-                .flatMap(dc => Measurement.program(dc, restClient)(gw, cli.periodicity()))
+              ZIO.acquireReleaseWith[EventLoopGroup with ChannelFactory with Clock, Throwable, RealDataCollector, Unit](
+                ZIO.attempt(new RealDataCollector(gw.host, gw.port)),
+                dc => ZIO.succeed(dc.close()),
+                dc => Measurement.program(dc, restClient)(gw, cli.periodicity())
+              )
             }
     } yield ())
       .provideSomeLayer(
