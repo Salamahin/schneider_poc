@@ -1,0 +1,11 @@
+**/target
+docker-compose.yml
+Dockerfile*
+.bsp
+.idea
+init.sql
+.git
+.gitignore
+.scalafmt.conf
+.DS_Store
+.dockerignore
