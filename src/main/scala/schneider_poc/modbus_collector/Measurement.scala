@@ -1,7 +1,7 @@
 package schneider_poc.modbus_collector
 
 import com.typesafe.scalalogging.LazyLogging
-import zio.Schedule.fixed
+import zio.Schedule.{fixed, forever}
 import zio.{ZIO, Duration => ZDuration}
 
 import scala.concurrent.duration.FiniteDuration
