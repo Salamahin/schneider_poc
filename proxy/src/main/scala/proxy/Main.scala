@@ -1,4 +1,4 @@
-package schneider_poc.proxy
+package proxy
 
 import org.rogach.scallop.ScallopConf
 import zio.{ZEnv, ZIO, ZIOAppArgs, ZIOAppDefault}

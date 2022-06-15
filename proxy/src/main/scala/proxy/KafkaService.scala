@@ -1,4 +1,4 @@
-package schneider_poc.proxy
+package proxy
 
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}

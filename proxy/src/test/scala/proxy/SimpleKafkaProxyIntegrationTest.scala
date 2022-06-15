@@ -1,4 +1,4 @@
-package schneider_poc.proxy
+package proxy
 
 import com.typesafe.scalalogging.LazyLogging
 import io.github.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
@@ -7,14 +7,15 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import zhttp.http.{HttpData, Method}
 import zhttp.service.{ChannelFactory, Client, EventLoopGroup}
 import zio.test.Assertion.hasSameElements
-import zio.test.{DefaultRunnableSpec, TestEnvironment, ZSpec, assert}
 import zio.{Schedule, Task, UIO, ZManaged}
+import zio.test.{DefaultRunnableSpec, TestEnvironment, ZSpec}
 
 import java.net.{ServerSocket, URLEncoder}
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.{Collections, Properties, UUID}
 import scala.util.Using
+import zio.test._
 
 object SimpleKafkaProxyIntegrationTest extends DefaultRunnableSpec with LazyLogging {
   case class ServicesInfo(zkPort: Int, kafkaPort: Int, servicePort: Int)
@@ -77,6 +78,8 @@ object SimpleKafkaProxyIntegrationTest extends DefaultRunnableSpec with LazyLogg
   }
 
   private def readTopic(kafkaPort: Int, topic: String) = {
+    import scala.jdk.CollectionConverters._
+
     val consumer = new KafkaConsumer[String, String](new Properties() {
 
       put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, s"localhost:$kafkaPort")
@@ -88,8 +91,6 @@ object SimpleKafkaProxyIntegrationTest extends DefaultRunnableSpec with LazyLogg
     })
 
     consumer.subscribe(Collections.singletonList(topic))
-
-    import scala.jdk.CollectionConverters._
     val messages = consumer
       .poll(Duration.ofSeconds(200))
       .iterator()

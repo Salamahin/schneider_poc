@@ -1,7 +1,8 @@
-package schneider_poc.modbus_collector
+package schneider_poc.data_collector
 
 import com.typesafe.scalalogging.LazyLogging
 import org.rogach.scallop.ScallopConf
+import schneider_poc.data_collector.DeviceRegistry
 import zhttp.service.{ChannelFactory, EventLoopGroup}
 import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault}
 

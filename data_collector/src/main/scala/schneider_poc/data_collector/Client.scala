@@ -1,27 +1,18 @@
-package schneider_poc.modbus_collector
+package schneider_poc.data_collector
 
 import com.typesafe.scalalogging.LazyLogging
-import io.circe.{Encoder, Json}
+import io.circe.Encoder
+import io.circe.generic.semiauto.deriveEncoder
 import zhttp.http.{HttpData, Method}
 import zhttp.service.{ChannelFactory, EventLoopGroup, Client => ZClient}
 import zio.ZIO
 
-case class MeasuredGauge(id: String, value: Measured)
+case class MeasuredGauge(gateway: String, device: Int, gauge: String, timestamp: Long, value: BigDecimal)
 
 object MeasuredGauge {
-  implicit val measuredGaugeEncoder: Encoder[MeasuredGauge] = Encoder.instance {
-    case MeasuredGauge(id, Numeric(timestamp, value)) =>
-      Json.obj(
-        "id"        -> Json.fromString(id),
-        "timestamp" -> Json.fromLong(timestamp.toEpochMilli),
-        "value"     -> Json.fromBigDecimal(value)
-      )
-  }
+  implicit val recordEncoder: Encoder[MeasuredGauge] = deriveEncoder[MeasuredGauge]
 
-  def apply(gatewayId: String, deviceId: Int, gaugeId: String, value: Measured) = new MeasuredGauge(
-    s"${gatewayId}+${deviceId}+${gaugeId}",
-    value
-  )
+  def apply(gatewayId: String, deviceId: Int, gaugeId: String, value: Measured) = new MeasuredGauge(gatewayId, deviceId, gaugeId, value.timestamp.toEpochMilli, value.value)
 }
 
 trait Client {

@@ -1,4 +1,4 @@
-package schneider_poc.modbus_collector
+package schneider_poc.data_collector
 
 import com.ghgande.j2mod.modbus.facade.ModbusTCPMaster
 import com.ghgande.j2mod.modbus.procimg.SimpleRegister
@@ -7,10 +7,7 @@ import zio.{Clock, URIO}
 
 import java.time.Instant
 
-sealed trait Measured {
-  val timestamp: Instant
-}
-case class Numeric(override val timestamp: Instant, value: BigDecimal) extends Measured
+case class Measured(timestamp: Instant, value: BigDecimal)
 
 trait DataCollector {
   def measure(gaugeId: String, deviceId: Int, gauge: Gauge): URIO[Clock, Measured]
@@ -88,7 +85,7 @@ class RealDataCollector(host: String, port: Int) extends DataCollector with Lazy
 
       _ = logger.debug(s"Measurement complete, gaugeId=$gaugeId deviceId=$deviceId, gauge=$gauge, result=$measured")
 
-    } yield Numeric(now, measured)
+    } yield Measured(now, measured)
 
   override def close(): Unit =
     master.disconnect()

@@ -1,4 +1,4 @@
-package schneider_poc.modbus_collector
+package schneider_poc.data_collector
 
 import com.typesafe.scalalogging.LazyLogging
 import zio.Schedule.{fixed, forever}
