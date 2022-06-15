@@ -69,11 +69,13 @@ class RealDataCollector(host: String, port: Int) extends DataCollector with Lazy
           .float32
 
       case Int64(offset) =>
-        master
+        val measured = master
           .readMultipleRegisters(deviceId, offset, 4)
           .map(_.asInstanceOf[SimpleRegister])
           .map(_.getValue)
           .int64
+
+        BigDecimal(measured)
     }
   }
 
