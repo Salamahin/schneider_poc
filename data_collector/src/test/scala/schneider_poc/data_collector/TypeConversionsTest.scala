@@ -16,6 +16,7 @@ class TypeConversionsTest extends AnyFunSuite with Matchers {
 
   test("int64 conversion") {
     Array(0x7fff, 0xffff, 0xffff, 0xffff).int64 should be(BigInt(Long.MaxValue))
+    Array(0x8000, 0x0000, 0x0000, 0x0000).int64 should be(BigInt(Long.MinValue))
   }
 
   test("float32 conversion") {
