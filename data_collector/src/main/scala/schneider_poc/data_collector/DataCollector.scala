@@ -14,32 +14,13 @@ trait DataCollector {
 }
 
 class RealDataCollector(host: String, port: Int) extends DataCollector with LazyLogging with AutoCloseable {
-  private implicit class IntTypeSyntax(bi: Int) {
-    def uint16: BigInt = BigInt(bi & 0xffff)
-  }
-
-  private implicit class ArrayOfIntsDataTypeSyntax(bi: Array[Int]) {
-    def uint32: BigInt = {
-      val Array(left, right) = bi.take(2)
-      BigInt((left << 16) | (right & 0xffff))
-    }
-
-    def float32: BigDecimal = {
-      val Array(left, right) = bi.take(2)
-      BigDecimal(java.lang.Float.intBitsToFloat((left << 16) | (right & 0xffff)))
-    }
-
-    def int64: BigInt = {
-      val Array(a, b, c, d) = bi.take(4)
-      BigInt(a << 48 | b << 32 | c << 16 | d)
-    }
-  }
-
   private val master = new ModbusTCPMaster(host, port)
   master.connect()
 
   private def measureGauge(gaugeId: String, gauge: Gauge, master: ModbusTCPMaster, deviceId: Int) = {
     logger.debug(s"Measurement started, gaugeId=${gaugeId}, deviceId=$deviceId, gauge=$gauge")
+
+    import TypeConversions._
 
     gauge match {
       case Int16(offset, scale) =>

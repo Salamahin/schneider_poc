@@ -2,9 +2,10 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "2.13.8"
 
 lazy val versions = new {
-  val zio   = "2.0.0-RC2"
-  val kafka = "3.2.0"
-  val circe = "0.14.1"
+  val zio    = "2.0.0-RC2"
+  val kafka  = "3.2.0"
+  val circe  = "0.14.1"
+  val log4j2 = "2.17.2"
 }
 
 lazy val commonSettings = Seq(
@@ -23,8 +24,8 @@ lazy val commonSettings = Seq(
 )
 
 lazy val commonLibraries = Seq(
-  "org.apache.logging.log4j"   % "log4j-core"       % "2.17.2",
-  "org.apache.logging.log4j"   % "log4j-slf4j-impl" % "2.17.2",
+  "org.apache.logging.log4j"   % "log4j-core"       % versions.log4j2,
+  "org.apache.logging.log4j"   % "log4j-slf4j-impl" % versions.log4j2,
   "com.typesafe.scala-logging" %% "scala-logging"   % "3.9.4",
   "dev.zio"                    %% "zio"             % versions.zio,
   "io.d11"                     %% "zhttp"           % "2.0.0-RC3",
@@ -36,7 +37,8 @@ lazy val commonLibraries = Seq(
   "com.ghgande"                % "j2mod"            % "3.1.1",
   "dev.zio"                    %% "zio-test"        % versions.zio % Test,
   "dev.zio"                    %% "zio-test-sbt"    % versions.zio % Test,
-  "io.github.embeddedkafka"    %% "embedded-kafka"  % versions.kafka % Test
+  "io.github.embeddedkafka"    %% "embedded-kafka"  % versions.kafka % Test,
+  "org.scalatest"              %% "scalatest"       % "3.2.12" % Test
 )
 
 lazy val commonAssemblySettings = Seq(
