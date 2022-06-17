@@ -39,19 +39,26 @@ object Main extends ZIOAppDefault with LazyLogging {
 
   override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
     for {
-      args <- getArgs
-      cli  = new ApplicationCli(args)
+      args  <- getArgs
+      clock <- ZIO.service[Clock]
 
-      rest      <- Client.rest(cli.serviceUrl()).provideLayer(EventLoopGroup.auto() ++ ChannelFactory.auto)
-      dcFactory <- DataCollectorFactory.live
+      cli       = new ApplicationCli(args)
       registry  = DeviceRegistry.fromFile(cli.registryFile())
+      dcFactory <- DataCollectorFactory.live
+
+      rest <- Client
+               .rest(cli.serviceUrl())
+               .provide(
+                 EventLoopGroup.auto(),
+                 ChannelFactory.auto
+               )
 
       exitCode <- program(cli.periodicity())
                    .provide(
                      ZLayer.succeed(registry),
                      ZLayer.succeed(dcFactory),
                      ZLayer.succeed(rest),
-                     Clock.live
+                     ZLayer.succeed(clock)
                    )
                    .foldCause(
                      failure => { logger.error(s"Unexpected failure:\n${failure.prettyPrint}"); ExitCode.failure },
