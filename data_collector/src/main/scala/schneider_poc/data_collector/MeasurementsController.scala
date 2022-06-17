@@ -2,13 +2,13 @@ package schneider_poc.data_collector
 
 import com.typesafe.scalalogging.LazyLogging
 import zio.Schedule.fixed
-import zio.{ZIO, Duration => ZDuration}
+import zio.{Clock, URIO, ZIO, Duration => ZDuration}
 
 import scala.concurrent.duration.FiniteDuration
 
 class MeasurementsController(dc: DataCollector, client: Client) extends LazyLogging {
 
-  def startMeasurementsPar(measurements: Seq[Measurement], periodicity: FiniteDuration) = {
+  def startMeasurementsPar(measurements: Seq[Measurement], periodicity: FiniteDuration): URIO[Clock, Unit] = {
     ZIO
       .foreachParDiscard(measurements) { measurement =>
         dc.measure(measurement)

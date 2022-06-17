@@ -3,7 +3,7 @@ package schneider_poc.data_collector
 import com.typesafe.scalalogging.LazyLogging
 import org.rogach.scallop.ScallopConf
 import zhttp.service.{ChannelFactory, EventLoopGroup}
-import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault}
+import zio.{Clock, ExitCode, ZEnv, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -16,49 +16,48 @@ class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
 }
 
 object Main extends ZIOAppDefault with LazyLogging {
-  override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
-    val cliLayer = ZIO
-      .environment[ZIOAppArgs]
-      .map(args => new ApplicationCli(args.get.getArgs))
-      .toLayer
-
-    val registryLayer = cliLayer
-      .flatMap(cli => DeviceRegistry.fromFile(cli.get.registryFile()))
-
-    val restLayer = cliLayer
-      .map(cli => ZEnvironment(Client.rest(cli.get.serviceUrl())))
-
-    (for {
-      devRegistry <- ZIO.environmentWith[DeviceRegistry](_.get)
-      restClient  <- ZIO.environmentWith[Client](_.get)
-      cli         <- ZIO.environmentWith[ApplicationCli](_.get)
+  private def program(measurementPeriodicity: FiniteDuration): ZIO[Clock with DeviceRegistry with DataCollectorFactory with Client, Throwable, Unit] =
+    for {
+      restClient  <- ZIO.service[Client]
+      dcFactory   <- ZIO.service[DataCollectorFactory]
+      devRegistry <- ZIO.service[DeviceRegistry]
 
       measurements <- devRegistry.listMeasurements
 
       _ <- ZIO
             .foreachParDiscard(measurements) {
               case (Connection(host, port), measurements) =>
-                DataCollector
-                  .live(host, port)
-                  .use { dc => new MeasurementsController(dc, restClient).startMeasurementsPar(measurements, cli.periodicity()) }
+                dcFactory
+                  .make(host, port)
+                  .use { dc => new MeasurementsController(dc, restClient).startMeasurementsPar(measurements, measurementPeriodicity) }
                   .foldCause(
                     cause => logger.error(s"Failed to connect to Modbus TCP master at $host:$port because\n${cause.prettyPrint}"),
                     _ => ()
                   )
             }
+    } yield ()
 
-    } yield ())
-      .provideSomeLayer(
-        EventLoopGroup.auto() ++
-          ChannelFactory.auto ++
-          Clock.live ++
-          cliLayer ++
-          restLayer ++
-          registryLayer
-      )
-      .foldCause(
-        failure => logger.error(s"Unexpected failure:\n${failure.prettyPrint}"),
-        _ => ()
-      )
+  override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
+    for {
+      args <- getArgs
+      cli  = new ApplicationCli(args)
+
+      rest      <- Client.rest(cli.serviceUrl()).provideLayer(EventLoopGroup.auto() ++ ChannelFactory.auto)
+      dcFactory <- DataCollectorFactory.live
+      registry  = DeviceRegistry.fromFile(cli.registryFile())
+
+      exitCode <- program(cli.periodicity())
+                   .provide(
+                     ZLayer.succeed(registry),
+                     ZLayer.succeed(dcFactory),
+                     ZLayer.succeed(rest),
+                     Clock.live
+                   )
+                   .foldCause(
+                     failure => { logger.error(s"Unexpected failure:\n${failure.prettyPrint}"); ExitCode.failure },
+                     _ => ExitCode.success
+                   )
+
+    } yield exitCode
   }
 }

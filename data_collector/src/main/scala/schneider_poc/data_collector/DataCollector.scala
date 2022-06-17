@@ -3,70 +3,85 @@ package schneider_poc.data_collector
 import com.ghgande.j2mod.modbus.facade.ModbusTCPMaster
 import com.ghgande.j2mod.modbus.procimg.SimpleRegister
 import com.typesafe.scalalogging.LazyLogging
-import zio.{Clock, URIO, ZIO, ZManaged}
+import zio.{Clock, Task, ZIO, ZManaged}
 
 trait DataCollector {
-  def measure(m: Measurement): ZIO[Clock, Throwable, MeasuredGauge]
+  def measure(m: Measurement): Task[MeasuredGauge]
 }
 
-object DataCollector extends LazyLogging {
-  private def connect(host: String, port: Int) = {
-    val m = new ModbusTCPMaster(host, port)
-    m.connect()
+trait DataCollectorFactory {
+  def make(host: String, port: Int): ZManaged[Any, Throwable, DataCollector]
+}
 
-    logger.debug(s"Successfully connected to TCP master at $host:$port")
+object DataCollectorFactory {
+  val live: ZIO[Clock, Nothing, DataCollectorFactory] = for {
+    clock <- ZIO.service[Clock]
+    factory = new DataCollectorFactory {
+      override def make(host: String, port: Int): ZManaged[Any, Throwable, DataCollector] = {
+        val connectedDC = ZIO.attempt {
+          val dc = new RealDataCollector(host, port, clock)
+          dc.connect()
+          dc
+        }
 
-    m
-  }
-
-  class RealDataCollector(master: ModbusTCPMaster) extends DataCollector with LazyLogging {
-    private def measureGauge(measurement: Measurement) = {
-      import TypeConversions._
-
-      measurement.gauge match {
-        case Int16(offset, scale) =>
-          val value = master.readMultipleRegisters(measurement.deviceId, offset, 1).head
-          BigDecimal(value.asInstanceOf[SimpleRegister].getValue) / scale
-
-        case Uint16(offset, scale) =>
-          val value = master.readMultipleRegisters(measurement.deviceId, offset, 1).head
-          BigDecimal(value.asInstanceOf[SimpleRegister].getValue.uint16) / scale
-
-        case Uint32(offset, scale) =>
-          val value = master
-            .readMultipleRegisters(measurement.deviceId, offset, 2)
-            .map(_.asInstanceOf[SimpleRegister])
-            .map(_.getValue)
-            .uint32
-          BigDecimal(value) / scale
-
-        case Float32(offset) =>
-          master
-            .readMultipleRegisters(measurement.deviceId, offset, 2)
-            .map(_.asInstanceOf[SimpleRegister])
-            .map(_.getValue)
-            .float32
-
-        case Int64(offset) =>
-          val measured = master
-            .readMultipleRegisters(measurement.deviceId, offset, 4)
-            .map(_.asInstanceOf[SimpleRegister])
-            .map(_.getValue)
-            .int64
-
-          BigDecimal(measured)
+        ZManaged.acquireReleaseWith(connectedDC)(dc => ZIO.succeed(dc.disconnect()))
       }
     }
+  } yield factory
+}
 
-    override def measure(m: Measurement) =
-      for {
-        (measured, now) <- ZIO.attempt { measureGauge(m) } zipPar Clock.instant
-        _               = logger.debug(s"Measurement complete, details=$m, result=$measured")
-      } yield MeasuredGauge(m.gatewayId, m.deviceId, m.gaugeDescription, now.toEpochMilli, measured)
+class RealDataCollector(host: String, port: Int, clock: Clock) extends DataCollector with LazyLogging {
+  private val master = new ModbusTCPMaster(host, port)
+
+  def connect() = {
+    master.connect()
   }
 
-  def live(host: String, port: Int) =
-    ZManaged
-      .acquireReleaseWith(ZIO.attempt(connect(host, port)))(m => ZIO.succeed(m.disconnect()))
-      .map(m => new RealDataCollector(m))
+  def disconnect() = {
+    master.disconnect()
+  }
+
+  private def measureGauge(measurement: Measurement) = {
+    import TypeConversions._
+
+    measurement.gauge match {
+      case Int16(offset, scale) =>
+        val value = master.readMultipleRegisters(measurement.deviceId, offset, 1).head
+        BigDecimal(value.asInstanceOf[SimpleRegister].getValue) / scale
+
+      case Uint16(offset, scale) =>
+        val value = master.readMultipleRegisters(measurement.deviceId, offset, 1).head
+        BigDecimal(value.asInstanceOf[SimpleRegister].getValue.uint16) / scale
+
+      case Uint32(offset, scale) =>
+        val value = master
+          .readMultipleRegisters(measurement.deviceId, offset, 2)
+          .map(_.asInstanceOf[SimpleRegister])
+          .map(_.getValue)
+          .uint32
+        BigDecimal(value) / scale
+
+      case Float32(offset) =>
+        master
+          .readMultipleRegisters(measurement.deviceId, offset, 2)
+          .map(_.asInstanceOf[SimpleRegister])
+          .map(_.getValue)
+          .float32
+
+      case Int64(offset) =>
+        val measured = master
+          .readMultipleRegisters(measurement.deviceId, offset, 4)
+          .map(_.asInstanceOf[SimpleRegister])
+          .map(_.getValue)
+          .int64
+
+        BigDecimal(measured)
+    }
+  }
+
+  override def measure(m: Measurement) =
+    for {
+      (measured, now) <- ZIO.attempt { measureGauge(m) } zipPar clock.instant
+      _               = logger.debug(s"Measurement complete, details=$m, result=$measured")
+    } yield MeasuredGauge(m.gatewayId, m.deviceId, m.gaugeDescription, now.toEpochMilli, measured)
 }
