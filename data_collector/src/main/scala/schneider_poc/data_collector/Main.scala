@@ -2,7 +2,6 @@ package schneider_poc.data_collector
 
 import com.typesafe.scalalogging.LazyLogging
 import org.rogach.scallop.ScallopConf
-import schneider_poc.data_collector.DeviceRegistry
 import zhttp.service.{ChannelFactory, EventLoopGroup}
 import zio.{Clock, ZEnv, ZEnvironment, ZIO, ZIOAppArgs, ZIOAppDefault}
 
@@ -17,7 +16,6 @@ class ApplicationCli(args: Seq[String]) extends ScallopConf(args) {
 }
 
 object Main extends ZIOAppDefault with LazyLogging {
-
   override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = {
     val cliLayer = ZIO
       .environment[ZIOAppArgs]
@@ -35,16 +33,20 @@ object Main extends ZIOAppDefault with LazyLogging {
       restClient  <- ZIO.environmentWith[Client](_.get)
       cli         <- ZIO.environmentWith[ApplicationCli](_.get)
 
-      gateways <- devRegistry.listGateways
+      measurements <- devRegistry.listMeasurements
 
       _ <- ZIO
-            .foreachParDiscard(gateways) { gw =>
-              ZIO.acquireReleaseWith[EventLoopGroup with ChannelFactory with Clock, Throwable, RealDataCollector, Unit](
-                ZIO.attempt(new RealDataCollector(gw.host, gw.port)),
-                dc => ZIO.succeed(dc.close()),
-                dc => Measurement.program(dc, restClient)(gw, cli.periodicity())
-              )
+            .foreachParDiscard(measurements) {
+              case (Connection(host, port), measurements) =>
+                DataCollector
+                  .live(host, port)
+                  .use { dc => new MeasurementsController(dc, restClient).startMeasurementsPar(measurements, cli.periodicity()) }
+                  .foldCause(
+                    cause => logger.error(s"Failed to connect to Modbus TCP master at $host:$port because\n${cause.prettyPrint}"),
+                    _ => ()
+                  )
             }
+
     } yield ())
       .provideSomeLayer(
         EventLoopGroup.auto() ++
