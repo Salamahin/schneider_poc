@@ -1,9 +1,10 @@
-package proxy
+package schneider_poc.proxy
 
 import com.typesafe.scalalogging.LazyLogging
 import io.github.embeddedkafka.{EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.common.serialization.StringDeserializer
+import schneider_poc.proxy.{KafkaService, SimpleKafkaProxy}
 import zhttp.http.{HttpData, Method}
 import zhttp.service.{ChannelFactory, Client, EventLoopGroup}
 import zio.test.Assertion.hasSameElements

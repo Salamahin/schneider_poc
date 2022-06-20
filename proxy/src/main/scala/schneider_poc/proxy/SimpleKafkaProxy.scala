@@ -1,4 +1,4 @@
-package proxy
+package schneider_poc.proxy
 
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Encoder
