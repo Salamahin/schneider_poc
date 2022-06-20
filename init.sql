@@ -1,15 +1,21 @@
+case class MeasuredGauge(gateway: String, device: Int, gauge: String, timestamp: Long, value: BigDecimal)
+
 create table if not exists table_mytopic(
-    `id`        String,
-    `timestamp` Int64,
-    `value`     Float64
+    `gateway`        String,
+    `device`         Int64,
+    `gauge`          Float64,
+    `timestamp`:     Int64,
+    `value`:         Float64
 ) engine = MergeTree() order by `timestamp`;
 
 create table if not exists kafka_mytopic(
-    `id`        String,
-    `timestamp` Int64,
-    `value`     Float64
+    `gateway`        String,
+    `device`         Int64,
+    `gauge`          Float64,
+    `timestamp`:     Int64,
+    `value`:         Float64
 ) engine = Kafka() settings
-    kafka_broker_list = '127.0.0.1:9092',
+    kafka_broker_list = '10.233.6.197:9092',
     kafka_topic_list = 'mytopic',
     kafka_group_name = 'mytopic-clickhouse-consumer-1',
     kafka_num_consumers = 5,
